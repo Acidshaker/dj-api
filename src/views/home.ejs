@@ -1,0 +1,8 @@
+<% layout('layouts/main') %>
+
+<p>Explora los endpoints disponibles:</p>
+<ul>
+  <% for (const [key, url] of Object.entries(endpoints)) { %>
+    <li><a href="<%= url %>"><%= key %></a></li>
+  <% } %>
+</ul>
