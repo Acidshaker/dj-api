@@ -10,12 +10,14 @@ import { configs } from "./config";
 import { swaggerUiHandler, swaggerUiSetup } from "./config/swagger";
 import path from "path";
 import { getSystemStatus } from "./middlewares/status";
-
+import { adminRouter, adminPath } from './admin/panel';
+import { title } from "process";
 
 
 dotenv.config();
 
 const app = express();
+
 
 app.use(cors(corsOptions));
 app.use(express.json());
@@ -34,16 +36,17 @@ app.use(expressLayouts);
 app.set('layout', 'layouts/main');
 
 
-// app.get("/", (_, res) => {
-//   res.render("home", {
-//     endpoints: {
-//       login: "/api/v1/auth/login",
-//       users: "/api/v1/users",
-//       docs: "/docs",
-//       admin: adminPath,
-//     },
-//   });
-// });
+app.get("/", (_, res) => {
+  res.render("home", {
+    title: "Bienvenido",
+    endpoints: {
+      login: "/api/v1/auth/login",
+      users: "/api/v1/users",
+      docs: "/docs",
+      admin: adminPath,
+    },
+  });
+});
 
 app.get("/dashboard", async (_, res) => {
   const status = await getSystemStatus();
@@ -59,7 +62,7 @@ app.get("/dashboard", async (_, res) => {
 app.use('/docs', swaggerUiHandler, swaggerUiSetup);
 
 // Panel AdminJS
-// app.use(adminPath, adminRouter);
+app.use(adminPath, adminRouter);
 
 
 app.use("/api/v1", routes);
