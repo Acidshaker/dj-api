@@ -1,7 +1,6 @@
-import type { Request, Response, NextFunction } from "express";
-import type { ZodType } from "zod";
-
-
+import type { Request, Response, NextFunction } from 'express';
+import type { ZodType } from 'zod';
+import { errorResponse } from '../utils/response';
 
 export const validateBody =
   (schema: ZodType) => (req: Request, res: Response, next: NextFunction) => {
@@ -9,6 +8,11 @@ export const validateBody =
       req.body = schema.parse(req.body);
       next();
     } catch (err) {
-      return res.status(400).json({ error: err });
+      return errorResponse({
+        res,
+        status: 400,
+        message: 'Error de validación',
+        error: err,
+      });
     }
   };

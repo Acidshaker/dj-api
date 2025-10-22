@@ -1,0 +1,15 @@
+import './Role';
+import './User';
+import './Music';
+import './Event';
+import './EventMusic';
+import './CompanyData';
+import './associations';
+import './Plan';
+import './Subscription';
+import './PasswordResetToken';
+import './EmailVerificationToken';
+import './EventPackage';
+import './Mention';
+import './Group';
+import './GroupEventPackage';
