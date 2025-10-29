@@ -22,8 +22,15 @@ export const createStripeAccount = async (req: Request, res: Response) => {
       type: 'express',
       country: 'MX',
       email: user.email,
+      business_type: 'individual',
       capabilities: {
         transfers: { requested: true },
+        card_payments: { requested: true },
+      },
+      business_profile: {
+        mcc: '7929', // Bandas, músicos, orquestas y entretenimiento en vivo
+        product_description: 'Servicios musicales en eventos en vivo',
+        name: `${user.first_name} ${user.last_name}`,
       },
     });
 
@@ -74,8 +81,14 @@ export const updateStripeVerificationStatus = async (req: Request, res: Response
       return errorResponse({ res, status: 400, message: 'Usuario sin cuenta Stripe' });
     }
 
-    const { isReady } = await verifyStripeAccount(user.stripeAccountId);
+    const account = await stripe.accounts.retrieve(user.stripeAccountId);
+    const isReady =
+      account.details_submitted === true &&
+      account.payouts_enabled === true &&
+      account.capabilities?.transfers === 'active' &&
+      account.capabilities?.card_payments === 'active';
 
+    console.log(account);
     user.isStripeVerified = isReady;
     await user.save();
 

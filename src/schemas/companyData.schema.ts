@@ -5,6 +5,7 @@ export const companyDataSchema = {
     company_name: z.string().min(1),
     company_phone: z.string().min(1),
     company_email: z.string().email(),
+    logo: z.string().optional(),
   }),
 
   update: z.object({

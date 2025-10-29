@@ -29,7 +29,7 @@ const router = Router();
  *       500:
  *         description: Error al crear cuenta Stripe
  */
-router.post('/stripe/account', verifyToken, createStripeAccount);
+router.get('/account', verifyToken, createStripeAccount);
 
 /**
  * @swagger
@@ -52,7 +52,7 @@ router.post('/stripe/account', verifyToken, createStripeAccount);
  *       500:
  *         description: Error al generar el enlace
  */
-router.get('/stripe/onboarding-link', verifyToken, generateStripeOnboardingLink);
+router.get('/onboarding-link', verifyToken, generateStripeOnboardingLink);
 
 /**
  * @swagger
@@ -76,6 +76,6 @@ router.get('/stripe/onboarding-link', verifyToken, generateStripeOnboardingLink)
  *         description: Error al verificar la cuenta
  */
 
-router.patch('/stripe/verify', verifyToken, updateStripeVerificationStatus);
+router.post('/verify', verifyToken, updateStripeVerificationStatus);
 
 export default router;

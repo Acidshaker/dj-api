@@ -3,13 +3,24 @@ import { Event } from '../models/Event';
 import { User } from '../models/User';
 import { errorResponse, successResponse } from '../utils/response';
 import { createStripeSession } from '../services/generatePaymentSession';
+import { EventMusic } from '../models/EventMusic';
 
 export const initiateMusicRequest = async (req: Request, res: Response) => {
   try {
-    const { applicant, eventId, type, description, tip, name, author, album_logo, duration } =
-      req.body;
+    const {
+      applicant,
+      eventId,
+      type,
+      description,
+      tip,
+      name,
+      author,
+      album_logo,
+      spotify_url,
+      duration,
+    } = req.body;
 
-    if (!applicant || !eventId || !type || !tip) {
+    if (!eventId || !type || !tip) {
       return errorResponse({ res, status: 400, message: 'Faltan campos obligatorios' });
     }
 
@@ -32,7 +43,7 @@ export const initiateMusicRequest = async (req: Request, res: Response) => {
     }
 
     const sessionUrl = await createStripeSession({
-      applicant,
+      applicant: applicant || 'cliente anónimo',
       eventId,
       type,
       description,
@@ -41,6 +52,7 @@ export const initiateMusicRequest = async (req: Request, res: Response) => {
       name,
       author,
       album_logo,
+      spotify_url,
       duration,
     });
 
@@ -52,5 +64,56 @@ export const initiateMusicRequest = async (req: Request, res: Response) => {
       message: 'Error al iniciar solicitud musical',
       error,
     });
+  }
+};
+
+export const completeEventMusic = async (req: Request, res: Response) => {
+  const { eventMusicId } = req.body;
+  try {
+    const eventMusic = await EventMusic.findOne({
+      where: { id: eventMusicId, is_played: false },
+    });
+    if (!eventMusic) {
+      return errorResponse({
+        res,
+        status: 404,
+        message: 'Solicitud no encontrada o ya completada',
+      });
+    }
+
+    eventMusic.is_played = true;
+    await eventMusic.save();
+
+    return successResponse({ res, message: 'Solicitud musical completada correctamente' });
+  } catch (error) {
+    return errorResponse({
+      res,
+      status: 500,
+      message: 'Error al completar solicitud musical',
+      error,
+    });
+  }
+};
+
+export const getEventMusicBySession = async (req: Request, res: Response) => {
+  const { session_id } = req.query;
+
+  if (!session_id || typeof session_id !== 'string') {
+    return res.status(400).json({ message: 'Falta el session_id' });
+  }
+
+  try {
+    const eventMusic = await EventMusic.findOne({
+      where: { stripeSessionId: session_id },
+      include: { model: Event, as: 'event', attributes: ['qr_url', 'name'] },
+    });
+    if (!eventMusic) {
+      return res.status(404).json({ message: 'Solicitud no encontrada' });
+    }
+
+    res.json({ success: true, data: eventMusic });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Error al obtener la solicitud' });
   }
 };

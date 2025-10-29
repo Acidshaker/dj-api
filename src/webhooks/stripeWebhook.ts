@@ -9,6 +9,8 @@ import type { Request, Response } from 'express';
 import Stripe from 'stripe';
 import { broadcastEventMusic } from '../app';
 
+const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+
 const subscribe = async (userId: string, planId: number) => {
   const plan = await Plan.findByPk(planId);
   const oldSubscription = await Subscription.findOne({ where: { userId } });
@@ -94,6 +96,7 @@ export const stripeWebhook = async (req: Request, res: Response) => {
     const type = session.metadata?.type;
     const description = session.metadata?.description;
     const name = session.metadata?.name;
+    const spotify_url = session.metadata?.spotify_url;
     const author = session.metadata?.author;
     const album_logo = session.metadata?.album_logo;
     const duration = session.metadata?.duration;
@@ -111,30 +114,6 @@ export const stripeWebhook = async (req: Request, res: Response) => {
         });
         const application_number = last ? last.application_number + 1 : 1;
 
-        let mentionId: string | null = null;
-        let musicId: string | null = null;
-
-        // Crear mención
-        if (type === 'mention') {
-          const mention = await Mention.create({
-            text: description || '',
-            eventMusicId: '', // se actualiza después
-          });
-          mentionId = mention.id;
-        }
-
-        // Crear canción
-        if (type === 'song') {
-          const music = await Music.create({
-            name: name || 'Canción sin nombre',
-            author: author || 'Desconocido',
-            album_logo: album_logo || '',
-            duration: duration || '00:00',
-            eventMusicId: '', // se actualiza después
-          });
-          musicId = music.id;
-        }
-
         // Crear solicitud musical
         const eventMusic = await EventMusic.create({
           applicant,
@@ -146,14 +125,27 @@ export const stripeWebhook = async (req: Request, res: Response) => {
           eventId,
           is_paid: true,
           is_played: false,
+          stripeSessionId: session.id,
         });
 
-        // Actualizar relación inversa
-        if (mentionId) {
-          await Mention.update({ eventMusicId: eventMusic.id }, { where: { id: mentionId } });
+        // Crear mención
+        if (type === 'mention') {
+          const mention = await Mention.create({
+            text: description || '',
+            eventMusicId: eventMusic.id,
+          });
         }
-        if (musicId) {
-          await Music.update({ eventMusicId: eventMusic.id }, { where: { id: musicId } });
+
+        // Crear canción
+        if (type === 'song') {
+          const music = await Music.create({
+            name: name || 'Canción sin nombre',
+            author: author || 'Desconocido',
+            album_logo: album_logo || '',
+            duration: duration || '00:00',
+            spotify_url: spotify_url || '',
+            eventMusicId: eventMusic.id,
+          });
         }
 
         broadcastEventMusic({
@@ -163,6 +155,7 @@ export const stripeWebhook = async (req: Request, res: Response) => {
           tip: eventMusic.tip,
           application_number: eventMusic.application_number,
           eventId: eventMusic.eventId,
+          url: `${frontendUrl}/events/${eventMusic.eventId}`,
         });
 
         if (session.amount_total) {

@@ -11,6 +11,7 @@ import { EmailVerificationToken } from './EmailVerificationToken';
 import { EventPackage } from './EventPackage';
 import { Mention } from './Mention';
 import { Group } from './Group';
+import { GroupEventPackage } from './GroupEventPackage';
 
 //
 // 🔗 Usuario
@@ -43,21 +44,11 @@ EmailVerificationToken.belongsTo(User, {
 Event.hasMany(EventMusic, { foreignKey: 'eventId', as: 'eventMusics' });
 EventMusic.belongsTo(Event, { foreignKey: 'eventId', as: 'event' });
 
-Event.belongsTo(CompanyData, { foreignKey: 'companyDataId' });
-CompanyData.hasMany(Event, { foreignKey: 'companyDataId' });
+Event.belongsTo(CompanyData, { foreignKey: 'companyDataId', as: 'companyData' });
+CompanyData.hasMany(Event, { foreignKey: 'companyDataId', as: 'events' });
 
 Event.belongsTo(Group, { foreignKey: 'groupId', as: 'group' });
 Group.hasMany(Event, { foreignKey: 'groupId', as: 'events' });
-
-// Event.belongsTo(ListEventMusic, {
-//   foreignKey: 'listEventMusicId',
-//   as: 'listEventMusic',
-// });
-
-// ListEventMusic.hasMany(Event, {
-//   foreignKey: 'listEventMusicId',
-//   as: 'events',
-// });
 
 //
 // 🔗 EventMusic
@@ -99,3 +90,6 @@ EventPackage.belongsToMany(Group, {
   otherKey: 'groupId',
   as: 'groups',
 });
+
+GroupEventPackage.belongsTo(Group, { foreignKey: 'groupId', as: 'group' });
+Group.hasMany(GroupEventPackage, { foreignKey: 'groupId', as: 'groupEventPackages' });

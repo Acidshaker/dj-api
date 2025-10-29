@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import { Group } from '../models/Group';
 import { EventPackage } from '../models/EventPackage';
+import { Event } from '../models/Event';
 import { errorResponse, successResponse } from '../utils/response';
 import { getPaginationParams, formatPaginatedResponse } from '../utils/pagination';
 import { Op } from 'sequelize';
@@ -108,7 +109,9 @@ export const getGroups = async (req: Request, res: Response) => {
       filters.name = { [Op.iLike]: `%${search}%` };
     }
 
-    const packages = await Group.findAndCountAll({
+    const totalCount = await Group.count({ where: filters });
+
+    const packages = await Group.findAll({
       where: filters,
       limit,
       offset,
@@ -116,9 +119,109 @@ export const getGroups = async (req: Request, res: Response) => {
       include: [{ model: EventPackage, as: 'eventPackages' }],
     });
 
-    const response = formatPaginatedResponse(packages, page, limit);
+    const response = formatPaginatedResponse({ rows: packages, count: totalCount }, page, limit);
     return successResponse({ res, message: 'Grupos obtenidos correctamente', data: response });
   } catch (error) {
     return errorResponse({ res, status: 500, message: 'Error al obtener paquetes', error });
+  }
+};
+
+export const softDeleteGroup = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const group = await Group.findOne({ where: { id, userId: req.user.id, is_active: true } });
+    if (!group) {
+      return errorResponse({ res, status: 404, message: 'Grupo no encontrado o ya inactivo' });
+    }
+
+    const eventWithGroup = await Event.findOne({
+      where: {
+        groupId: id,
+        is_active: true,
+        status: {
+          [Op.or]: ['active', 'not_started'],
+        },
+      },
+    });
+    if (eventWithGroup) {
+      return errorResponse({
+        res,
+        status: 400,
+        message: 'Tienes un evento sin finalizar asociado con este grupo',
+      });
+    }
+
+    group.is_active = false;
+    await group.save();
+
+    return successResponse({ res, message: 'Grupo eliminado correctamente', data: group });
+  } catch (error) {
+    return errorResponse({ res, status: 500, message: 'Error al eliminar grupo', error });
+  }
+};
+
+export const reactivateGroup = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const group = await Group.findOne({
+      where: { id, userId: req.user.id, is_active: false },
+    });
+
+    if (!group) {
+      return errorResponse({
+        res,
+        status: 404,
+        message: 'Grupo no encontrado o ya activo',
+      });
+    }
+
+    const exist = await Group.findOne({
+      where: { name: group.name, userId: req.user.id, is_active: true },
+    });
+
+    if (exist) {
+      return errorResponse({
+        res,
+        status: 400,
+        message: 'Ya existe un grupo con ese nombre',
+      });
+    }
+
+    const inactivePackages = await EventPackage.findAll({
+      include: {
+        model: Group,
+        as: 'groups',
+        where: { id: group.id },
+        through: { attributes: [] },
+      },
+      where: { is_active: false },
+    });
+
+    if (inactivePackages.length > 0) {
+      return errorResponse({
+        res,
+        status: 400,
+        message:
+          'Este grupo tiene paquetes de evento inactivos asociados. Reactiva o desvincula esos paquetes antes de continuar.',
+      });
+    }
+
+    group.is_active = true;
+    await group.save();
+
+    return successResponse({
+      res,
+      message: 'Grupo reactivado correctamente',
+      data: group,
+    });
+  } catch (error) {
+    return errorResponse({
+      res,
+      status: 500,
+      message: 'Error al reactivar grupo',
+      error,
+    });
   }
 };

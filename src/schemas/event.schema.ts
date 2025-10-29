@@ -19,6 +19,6 @@ export const eventSchema = {
     date: z.string().datetime().optional(),
     name: z.string().optional(),
     companyDataId: z.string().uuid().optional(),
-    packages: z.array(packageSchema).min(1).max(4).optional(),
+    groupId: z.string().uuid().optional(),
   }),
 };

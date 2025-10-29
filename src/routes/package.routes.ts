@@ -12,8 +12,8 @@ const router = Router();
 
 router.get('/', verifyToken, getEventPackages);
 router.post('/', verifyToken, createEventPackage);
-router.post('/reactive', verifyToken, reactiveEventPackage);
+router.post('/:id/reactive', verifyToken, reactiveEventPackage);
+router.post('/:id/desactive', verifyToken, softDeleteEventPackage);
 router.patch('/:id', verifyToken, updateEventPackage);
-router.delete('/:id', verifyToken, softDeleteEventPackage);
 
 export default router;

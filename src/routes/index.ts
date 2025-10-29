@@ -8,6 +8,8 @@ import subscriptionRoutes from './subscription.routes';
 import stripeRoutes from './stripe.routes';
 import packageRoutes from './package.routes';
 import groupRoutes from './group.routes';
+import musicRoutes from './music.routes';
+import eventMusic from './eventMusic.routes';
 
 const routes = Router();
 routes.use('/auth', authRoutes);
@@ -19,5 +21,7 @@ routes.use('/events', eventRoutes);
 routes.use('/stripe', stripeRoutes);
 routes.use('/plans', planRoutes);
 routes.use('/subscriptions', subscriptionRoutes);
+routes.use('/songs', musicRoutes);
+routes.use('/event-music', eventMusic);
 
 export default routes;

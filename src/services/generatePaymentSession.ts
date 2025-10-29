@@ -7,6 +7,7 @@ export const createStripeSession = async ({
   description,
   tip,
   stripeAccountId,
+  spotify_url,
   name,
   author,
   album_logo,
@@ -18,6 +19,7 @@ export const createStripeSession = async ({
   description?: string;
   tip: number;
   stripeAccountId: string;
+  spotify_url?: string;
   name?: string;
   author?: string;
   album_logo?: string;
@@ -42,6 +44,7 @@ export const createStripeSession = async ({
           author: author || 'Desconocido',
           album_logo: album_logo || '',
           duration: duration || '00:00',
+          spotify_url: spotify_url || '',
         };
 
   const session = await stripe.checkout.sessions.create(
@@ -52,7 +55,7 @@ export const createStripeSession = async ({
           price_data: {
             currency: 'mxn',
             product_data: {
-              name: `Solicitud musical (${type})`,
+              name: `Solicitud musical (${type === 'song' ? 'Canción' : 'Mención'})`,
             },
             unit_amount: Math.round(tip * 100),
           },
@@ -60,7 +63,7 @@ export const createStripeSession = async ({
         },
       ],
       mode: 'payment',
-      success_url: `${process.env.FRONTEND_URL}/client/event/${eventId}?status=success`,
+      success_url: `${process.env.FRONTEND_URL}/client/event/${eventId}?status=success&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${process.env.FRONTEND_URL}/client/event/${eventId}?status=cancel`,
       metadata,
     },

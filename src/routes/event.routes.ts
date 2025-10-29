@@ -7,12 +7,18 @@ import {
   finishEvent,
   updateEvent,
   generateFolio,
+  softDeleteEvent,
+  reactivateEvent,
+  getEventByIdClient,
+  getEventMusicsByEventId,
 } from '../controllers/event.controller';
 import { validateBody } from '../middlewares/validate';
 import { verifyToken } from '../middlewares/auth';
 import { eventSchema } from '../schemas/event.schema';
 
 const router = Router();
+
+router.get('/requests', verifyToken, getEventMusicsByEventId);
 
 /**
  * @swagger
@@ -130,7 +136,9 @@ router.get('/generate-folio', verifyToken, generateFolio);
  *       404:
  *         description: Evento no encontrado
  */
-router.get('/:id', getEventById);
+router.get('/:id', verifyToken, getEventById);
+
+router.get('/client/:id', getEventByIdClient);
 
 /**
  * @swagger
@@ -152,7 +160,7 @@ router.get('/:id', getEventById);
  *       400:
  *         description: Evento no válido para iniciar
  */
-router.patch('/:id/start', verifyToken, startEvent);
+router.post('/:id/start', verifyToken, startEvent);
 
 /**
  * @swagger
@@ -174,7 +182,7 @@ router.patch('/:id/start', verifyToken, startEvent);
  *       400:
  *         description: Evento no válido para finalizar
  */
-router.patch('/:id/finish', verifyToken, finishEvent);
+router.post('/:id/finish', verifyToken, finishEvent);
 /**
  * @swagger
  * /events/{id}/deactivate:
@@ -195,7 +203,7 @@ router.patch('/:id/finish', verifyToken, finishEvent);
  *       404:
  *         description: Evento no encontrado
  */
-// router.patch('/:id/deactivate', verifyToken, softDeleteCompanyData);
+router.post('/:id/desactive', verifyToken, softDeleteEvent);
 
 // /**
 //  * @swagger
@@ -217,6 +225,8 @@ router.patch('/:id/finish', verifyToken, finishEvent);
 //  *       404:
 //  *         description: Evento no encontrado
 //  */
-// router.patch('/:id/reactivate', verifyToken, reactiveCompanyData);
+router.post('/:id/reactive', verifyToken, reactivateEvent);
+
+router.post('/:id/cancel', verifyToken, updateEvent);
 
 export default router;

@@ -90,6 +90,7 @@ export const updateEvent = async (req: Request, res: Response) => {
     }
 
     if (groupId) {
+      console.log(groupId);
       const group = await Group.findOne({ where: { id: groupId, userId: req.user.id } });
       if (!group) {
         return errorResponse({
@@ -114,7 +115,7 @@ export const updateEvent = async (req: Request, res: Response) => {
 export const getUserEvents = async (req: Request, res: Response) => {
   try {
     const { page, limit, offset } = getPaginationParams(req);
-    const { month, year, status, search } = req.query;
+    const { month, year, status, search, is_active } = req.query;
 
     const filters: any = { userId: req.user.id };
     if (status) filters.status = status;
@@ -128,12 +129,22 @@ export const getUserEvents = async (req: Request, res: Response) => {
       };
     }
 
+    if (is_active !== undefined) {
+      filters.is_active = is_active === 'true';
+    }
+
     const events = await Event.findAndCountAll({
       where: filters,
       limit,
       offset,
       order: [['date', 'DESC']],
-      include: [{ model: CompanyData, attributes: ['company_name'] }],
+      include: [
+        {
+          model: CompanyData,
+          as: 'companyData',
+          attributes: ['company_name', 'logo', 'company_email', 'company_phone'],
+        },
+      ],
     });
 
     // Obtener conteo de solicitudes musicales por evento
@@ -188,9 +199,9 @@ export const startEvent = async (req: Request, res: Response) => {
 };
 
 export const finishEvent = async (req: Request, res: Response) => {
+  const { id } = req.params;
+  console.log(id);
   try {
-    const { id } = req.params;
-
     const event = await Event.findOne({ where: { id, userId: req.user.id, is_active: true } });
     if (!event || event.status !== 'active') {
       return errorResponse({ res, status: 400, message: 'Evento no válido para finalizar' });
@@ -198,7 +209,6 @@ export const finishEvent = async (req: Request, res: Response) => {
 
     event.status = 'finished';
     event.finished_at = new Date();
-    event.is_active = false;
     await event.save();
 
     return successResponse({ res, message: 'Evento finalizado correctamente', data: event });
@@ -234,6 +244,11 @@ export const reactivateEvent = async (req: Request, res: Response) => {
       return errorResponse({ res, status: 404, message: 'Evento no encontrado o ya activo' });
     }
 
+    const isActiveGroup = await Group.findOne({ where: { id: event.groupId, is_active: true } });
+    if (!isActiveGroup) {
+      return errorResponse({ res, status: 400, message: 'Grupo asociado al evento no activo' });
+    }
+
     event.is_active = true;
     await event.save();
 
@@ -251,24 +266,19 @@ export const getEventById = async (req: Request, res: Response) => {
       where: { id, userId: req.user.id, is_active: true },
       include: [
         {
-          model: Group,
-          as: 'group',
-          include: [{ model: EventPackage, as: 'eventPackages' }],
-        },
-        {
           model: CompanyData,
           as: 'companyData',
-          attributes: ['company_name'],
+          attributes: ['company_name', 'company_phone', 'company_email', 'logo'],
         },
         {
-          model: EventMusic,
-          as: 'eventMusics',
-          include: [
-            { model: Mention, as: 'mention' },
-            { model: Music, as: 'music' },
-          ],
+          model: Group,
+          as: 'group',
+          attributes: ['id', 'name'],
         },
       ],
+      attributes: {
+        exclude: ['userId', 'packages', 'groupId'],
+      },
     });
 
     if (!event) {
@@ -280,7 +290,64 @@ export const getEventById = async (req: Request, res: Response) => {
       packages: event.group?.eventPackages || [],
     };
 
-    return successResponse({ res, message: 'Evento obtenido correctamente', data: response });
+    return successResponse({ res, message: 'Evento obtenido correctamente', data: event });
+  } catch (error) {
+    return errorResponse({ res, status: 500, message: 'Error al obtener evento', error });
+  }
+};
+
+export const getEventByIdClient = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const event = await Event.findOne({
+      where: { id, is_active: true },
+      include: [
+        {
+          model: CompanyData,
+          as: 'companyData',
+          attributes: ['company_name', 'company_phone', 'company_email', 'logo'],
+        },
+        {
+          model: Group,
+          as: 'group',
+          include: [
+            {
+              model: EventPackage,
+              as: 'eventPackages',
+              attributes: {
+                exclude: ['createdAt', 'updatedAt', 'is_active', 'userId'],
+              },
+            },
+          ],
+          attributes: {
+            exclude: ['createdAt', 'updatedAt', 'id', 'is_active', 'userId'],
+          },
+        },
+      ],
+      attributes: {
+        exclude: [
+          'userId',
+          'groupId',
+          'id',
+          'qr_url',
+          'folio',
+          'companyDataId',
+          'createdAt',
+          'updatedAt',
+          'started_at',
+          'finished_at',
+          'date',
+          'is_active',
+        ],
+      },
+    });
+
+    if (!event) {
+      return errorResponse({ res, status: 404, message: 'Evento no encontrado' });
+    }
+
+    return successResponse({ res, message: 'Evento obtenido correctamente', data: event });
   } catch (error) {
     return errorResponse({ res, status: 500, message: 'Error al obtener evento', error });
   }
@@ -288,9 +355,8 @@ export const getEventById = async (req: Request, res: Response) => {
 
 export const getEventMusicsByEventId = async (req: Request, res: Response) => {
   try {
-    const { id: eventId } = req.params;
     const { page, limit, offset } = getPaginationParams(req);
-    const { is_played, search } = req.query;
+    const { is_played, search, eventId } = req.query;
 
     const event = await Event.findOne({
       where: { id: eventId, userId: req.user.id, is_active: true },
@@ -325,9 +391,19 @@ export const getEventMusicsByEventId = async (req: Request, res: Response) => {
         { model: Mention, as: 'mention' },
         { model: Music, as: 'music' },
       ],
+      attributes: {
+        exclude: [
+          'createdAt',
+          'updatedAt',
+          'is_active',
+          'application_date',
+          'description',
+          'eventId',
+        ],
+      },
       limit,
       offset,
-      order: [['applicant_number', 'ASC']],
+      order: [['application_number', 'ASC']],
     });
 
     const response = formatPaginatedResponse(eventMusics, page, limit);

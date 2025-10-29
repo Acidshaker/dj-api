@@ -8,7 +8,8 @@ export class Music extends Model {
   public is_played!: boolean;
   public album_logo!: string;
   public duration!: string;
-  public eventMusicId!: string;
+  public spotify_url!: string;
+  public eventMusicId!: string | null;
 }
 
 Music.init(
@@ -35,6 +36,10 @@ Music.init(
       allowNull: false,
     },
     duration: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+    spotify_url: {
       type: DataTypes.STRING,
       allowNull: false,
     },

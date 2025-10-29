@@ -48,7 +48,7 @@ const router = Router();
  *       500:
  *         description: Error interno
  */
-router.get('/', getUserCompanyData);
+router.get('/', verifyToken, getUserCompanyData);
 
 /**
  * @swagger
@@ -73,7 +73,13 @@ router.get('/', getUserCompanyData);
  *       500:
  *         description: Error interno
  */
-router.post('/', upload.single('logo'), validateBody(companyDataSchema.create), createCompanyData);
+router.post(
+  '/',
+  upload.single('logo'),
+  verifyToken,
+  validateBody(companyDataSchema.create),
+  createCompanyData
+);
 
 /**
  * @swagger
@@ -108,6 +114,7 @@ router.post('/', upload.single('logo'), validateBody(companyDataSchema.create), 
 router.patch(
   '/:id',
   upload.single('logo'),
+  verifyToken,
   validateBody(companyDataSchema.update),
   updateCompanyData
 );
@@ -136,6 +143,6 @@ router.patch(
  *       500:
  *         description: Error interno
  */
-router.patch('/:id/deactivate', softDeleteCompanyData);
+router.patch('/:id/deactivate', verifyToken, softDeleteCompanyData);
 
 export default router;

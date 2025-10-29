@@ -7,6 +7,7 @@ export class EventPackage extends Model {
   public max_songs_per_user!: number;
   public type!: string;
   public tip!: number;
+  public is_optional_tip!: boolean;
   public is_active!: boolean;
   public userId!: string;
 }
@@ -32,8 +33,12 @@ EventPackage.init(
     },
     tip: {
       type: DataTypes.FLOAT,
+      allowNull: true,
+    },
+    is_optional_tip: {
+      type: DataTypes.BOOLEAN,
       allowNull: false,
-      defaultValue: 0,
+      defaultValue: false,
     },
     userId: {
       type: DataTypes.UUID,

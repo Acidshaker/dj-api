@@ -3,6 +3,8 @@ import { EventPackage } from '../models/EventPackage';
 import { getPaginationParams, formatPaginatedResponse } from '../utils/pagination';
 import { errorResponse, successResponse } from '../utils/response';
 import { Op } from 'sequelize';
+import { Group } from '../models/Group';
+import { GroupEventPackage } from '../models/GroupEventPackage';
 
 export const createEventPackage = async (req: Request, res: Response) => {
   try {
@@ -81,6 +83,23 @@ export const softDeleteEventPackage = async (req: Request, res: Response) => {
 
     if (!pkg) {
       return errorResponse({ res, status: 404, message: 'Paquete no encontrado o ya inactivo' });
+    }
+
+    const groupWithPackage = await GroupEventPackage.findOne({
+      where: { eventPackageId: id },
+      include: {
+        model: Group,
+        as: 'group',
+        where: { is_active: true },
+      },
+    });
+
+    if (groupWithPackage) {
+      return errorResponse({
+        res,
+        status: 400,
+        message: 'Tienes un grupo activo asociado con este paquete',
+      });
     }
 
     pkg.is_active = false;

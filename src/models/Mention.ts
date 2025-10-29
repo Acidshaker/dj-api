@@ -4,7 +4,7 @@ import sequelize from '../config/sequelize';
 export class Mention extends Model {
   public id!: string;
   public text!: string;
-  public eventMusicId!: string;
+  public eventMusicId!: string | null;
 }
 
 Mention.init(
@@ -20,7 +20,7 @@ Mention.init(
     },
     eventMusicId: {
       type: DataTypes.UUID,
-      allowNull: false,
+      allowNull: true,
     },
   },
   {

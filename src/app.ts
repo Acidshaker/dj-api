@@ -29,24 +29,22 @@ app.use(cors(corsOptions));
 // 🔌 WebSocket server
 const wss = new WebSocketServer({ server });
 
-wss.on('connection', (ws) => {
-  console.log('🔗 Cliente conectado vía WebSocket');
-
-  ws.on('message', (message) => {
-    console.log('📩 Mensaje recibido:', message.toString());
-    // Puedes manejar comandos aquí si lo necesitas
-  });
-
-  ws.on('close', () => {
-    console.log('❌ Cliente desconectado');
-  });
-});
 // 🧠 Guardar clientes conectados
 const connectedClients: Set<WebSocket> = new Set();
 
 wss.on('connection', (ws: WebSocket) => {
+  console.log('🔗 Cliente conectado vía WebSocket');
+  connectedClients.add(ws);
+  console.log(`🧠 Total clientes conectados: ${connectedClients.size}`);
+
   ws.on('message', (message: string) => {
-    console.log('📩 Mensaje recibido:', message);
+    console.log('📩 Mensaje recibido del cliente:', message);
+  });
+
+  ws.on('close', () => {
+    console.log('❌ Cliente desconectado');
+    connectedClients.delete(ws);
+    console.log(`🧠 Total clientes conectados: ${connectedClients.size}`);
   });
 });
 

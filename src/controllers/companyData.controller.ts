@@ -46,27 +46,28 @@ export const createCompanyData = async (req: Request, res: Response) => {
     const { company_name, company_phone, company_email } = req.body;
     const file = req.file;
 
-    if (!file) {
-      return errorResponse({ res, status: 400, message: 'Logo requerido' });
-    }
-
-    const logoUrl = await uploadCompanyLogo(
-      file.buffer,
-      file.originalname,
-      req.user.email,
-      file.mimetype
-    );
-
     const companyData = await CompanyData.create({
       company_name,
       company_phone,
       company_email,
-      logo: logoUrl,
       userId: req.user.id,
+      logo: '',
     });
+    if (file) {
+      const logoUrl = await uploadCompanyLogo(
+        file.buffer,
+        file.originalname,
+        req.user.email,
+        file.mimetype
+      );
+
+      companyData.logo = logoUrl;
+      await companyData.save();
+    }
 
     return successResponse({ res, message: 'Empresa registrada correctamente', data: companyData });
   } catch (error) {
+    console.log(error);
     return errorResponse({ res, status: 500, message: 'Error al crear empresa', error });
   }
 };

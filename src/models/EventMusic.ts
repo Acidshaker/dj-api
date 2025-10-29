@@ -11,11 +11,13 @@ export class EventMusic extends Model {
   public tip!: number | null;
   public application_date!: Date;
   public application_number!: number;
+  public payment_method!: 'card' | 'cash';
   public music?: Music;
   public mention?: Mention;
   public type!: string;
   public eventId!: string;
   public event?: Event;
+  public stripeSessionId?: string | null;
 }
 
 EventMusic.init(
@@ -42,6 +44,10 @@ EventMusic.init(
       type: DataTypes.ENUM('mention', 'song'),
       allowNull: false,
     },
+    payment_method: {
+      type: DataTypes.ENUM('card', 'cash'),
+      allowNull: false,
+    },
     description: {
       type: DataTypes.STRING,
       allowNull: true,
@@ -61,6 +67,10 @@ EventMusic.init(
     eventId: {
       type: DataTypes.UUID,
       allowNull: false,
+    },
+    stripeSessionId: {
+      type: DataTypes.STRING,
+      allowNull: true,
     },
   },
   {
