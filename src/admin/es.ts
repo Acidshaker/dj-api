@@ -1,5 +1,4 @@
 import { Locale } from 'adminjs';
-import { ListEventMusic } from 'models/GroupPackage';
 import { fi, is } from 'zod/v4/locales';
 
 export const es: Locale = {
