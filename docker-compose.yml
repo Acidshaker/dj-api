@@ -1,0 +1,22 @@
+version: "3.8"
+
+services:
+  spindj-api:
+    image: 335344609892.dkr.ecr.us-east-2.amazonaws.com/spindj-api:latest
+    container_name: spindj-api
+    restart: unless-stopped
+    networks:
+      - net-proxy
+    expose:
+      - 3000
+    environment:
+      - VIRTUAL_HOST=spindj-api.paramq.com
+      - VIRTUAL_PORT=3000
+      - LETSENCRYPT_HOST=spindj-api.paramq.com
+    env_file: .env
+    volumes:
+      - /home/ubuntu/certs/global-bundle.pem:/app/global-bundle.pem
+
+networks:
+  net-proxy:
+    external: true
