@@ -4,6 +4,11 @@ import { User } from '../models/User';
 import { errorResponse, successResponse } from '../utils/response';
 import { createStripeSession } from '../services/generatePaymentSession';
 import { EventMusic } from '../models/EventMusic';
+import { Mention } from '../models/Mention';
+import { Music } from '../models/Music';
+import { broadcastEventMusic } from '../app';
+
+const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
 
 export const initiateMusicRequest = async (req: Request, res: Response) => {
   try {
@@ -18,9 +23,10 @@ export const initiateMusicRequest = async (req: Request, res: Response) => {
       album_logo,
       spotify_url,
       duration,
+      paymentMethod,
     } = req.body;
 
-    if (!eventId || !type || !tip) {
+    if (!eventId || !type || tip == null || !paymentMethod) {
       return errorResponse({ res, status: 400, message: 'Faltan campos obligatorios' });
     }
 
@@ -34,6 +40,56 @@ export const initiateMusicRequest = async (req: Request, res: Response) => {
     }
 
     const user = await User.findByPk(event.userId);
+    if (paymentMethod === 'cash') {
+      const last = await EventMusic.findOne({
+        where: { eventId },
+        order: [['application_number', 'DESC']],
+      });
+      const application_number = last ? last.application_number + 1 : 1;
+      const eventMusic = await EventMusic.create({
+        applicant: applicant || 'Cliente anónimo',
+        type,
+        description,
+        tip: tip,
+        application_date: new Date(),
+        application_number: application_number,
+        eventId,
+        is_paid: tip ? false : true,
+        is_played: false,
+        stripeSessionId: null,
+        payment_method: 'cash',
+      });
+
+      if (type === 'mention') {
+        await Mention.create({
+          text: description || '',
+          eventMusicId: eventMusic.id,
+        });
+      }
+
+      if (type === 'song') {
+        await Music.create({
+          name: name || 'Canción sin nombre',
+          author: author || 'Desconocido',
+          album_logo: album_logo || '',
+          duration: duration || '00:00',
+          spotify_url: spotify_url || '',
+          eventMusicId: eventMusic.id,
+        });
+      }
+
+      broadcastEventMusic({
+        id: eventMusic.id,
+        applicant: eventMusic.applicant,
+        type: eventMusic.type,
+        tip: eventMusic.tip,
+        application_number: eventMusic.application_number,
+        eventId: eventMusic.eventId,
+        url: `${frontendUrl}/events/${eventMusic.eventId}`,
+      });
+
+      return successResponse({ res, message: 'Solicitud creada', data: eventMusic });
+    }
     if (!user || !user.stripeAccountId) {
       return errorResponse({
         res,
@@ -68,10 +124,10 @@ export const initiateMusicRequest = async (req: Request, res: Response) => {
 };
 
 export const completeEventMusic = async (req: Request, res: Response) => {
-  const { eventMusicId } = req.body;
+  const { eventMusicId, isPaid } = req.body;
   try {
     const eventMusic = await EventMusic.findOne({
-      where: { id: eventMusicId, is_played: false },
+      where: { id: eventMusicId },
     });
     if (!eventMusic) {
       return errorResponse({
@@ -82,6 +138,37 @@ export const completeEventMusic = async (req: Request, res: Response) => {
     }
 
     eventMusic.is_played = true;
+    if (!eventMusic.is_paid && isPaid) {
+      eventMusic.is_paid = true;
+    }
+    await eventMusic.save();
+
+    return successResponse({ res, message: 'Solicitud musical completada correctamente' });
+  } catch (error) {
+    return errorResponse({
+      res,
+      status: 500,
+      message: 'Error al completar solicitud musical',
+      error,
+    });
+  }
+};
+
+export const changeToPaidEventMusic = async (req: Request, res: Response) => {
+  const { eventMusicId } = req.body;
+  try {
+    const eventMusic = await EventMusic.findOne({
+      where: { id: eventMusicId },
+    });
+    if (!eventMusic) {
+      return errorResponse({
+        res,
+        status: 404,
+        message: 'Solicitud no encontrada o ya completada',
+      });
+    }
+
+    eventMusic.is_paid = true;
     await eventMusic.save();
 
     return successResponse({ res, message: 'Solicitud musical completada correctamente' });

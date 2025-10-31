@@ -9,6 +9,9 @@ import { EventPackage } from '../models/EventPackage';
 import { Group } from '../models/Group';
 import { Mention } from '../models/Mention';
 import { Music } from '../models/Music';
+import { User } from '../models/User';
+import { Subscription } from '../models/Subscription';
+import { checkSubscription } from '../services/checkSubscription';
 
 export const generateFolio = async (req: Request, res: Response) => {
   const { id } = req.user;
@@ -25,6 +28,18 @@ export const generateFolio = async (req: Request, res: Response) => {
 export const createEvent = async (req: Request, res: Response) => {
   try {
     const { folio, name, date, groupId, companyDataId } = req.body;
+
+    const user = await User.findByPk(req.user.id);
+    console.log(user);
+    if (!user || !user.is_active) {
+      return errorResponse({ res, status: 404, message: 'Usuario no encontrado o inactivo' });
+    }
+
+    // validar suscripcion del usuario
+    if (user.subscription_status === 'expired' || user.subscription_status === 'none') {
+      0;
+      return errorResponse({ res, status: 403, message: 'Usuario sin suscripción activa' });
+    }
 
     // Validar folio duplicado
     const exist = await Event.findOne({ where: { folio, userId: req.user.id } });
@@ -62,6 +77,26 @@ export const createEvent = async (req: Request, res: Response) => {
       status: 'not_started',
       is_active: true,
     });
+
+    const subscription = await Subscription.findOne({
+      where: { userId: req.user.id },
+    });
+
+    if (
+      user.events_remaining &&
+      user.events_remaining > 0 &&
+      subscription &&
+      subscription.events_remaining
+    ) {
+      user.events_remaining = user.events_remaining - 1;
+      subscription.events_remaining = subscription.events_remaining - 1;
+      if (user.events_remaining === 0) {
+        user.subscription_status = 'expired';
+        subscription.status = 'expired';
+      }
+      await subscription.save();
+      await user.save();
+    }
 
     event.qr_url = `${process.env.FRONTEND_URL}/client/event/${event.id}`;
     await event.save();
@@ -188,6 +223,26 @@ export const startEvent = async (req: Request, res: Response) => {
       return errorResponse({ res, status: 400, message: 'Evento no válido para iniciar' });
     }
 
+    const isAvailable = await checkSubscription(req.user);
+
+    if (!isAvailable) {
+      return errorResponse({
+        res,
+        status: 400,
+        message: 'No tienes una suscripcion activa',
+      });
+    }
+
+    const hasOtherActiveEvent = await Event.findOne({
+      where: { userId: req.user.id, status: 'active' },
+    });
+    if (hasOtherActiveEvent) {
+      return errorResponse({
+        res,
+        status: 400,
+        message: 'No puedes tener mas de un evento activo',
+      });
+    }
     event.status = 'active';
     event.started_at = new Date();
     await event.save();
@@ -327,7 +382,6 @@ export const getEventByIdClient = async (req: Request, res: Response) => {
       ],
       attributes: {
         exclude: [
-          'userId',
           'groupId',
           'id',
           'qr_url',
@@ -365,6 +419,16 @@ export const getEventMusicsByEventId = async (req: Request, res: Response) => {
     if (!event) {
       return errorResponse({ res, status: 404, message: 'Evento no encontrado o inactivo' });
     }
+
+    // const isAvailable = await checkSubscription(req.user);
+
+    // if (!isAvailable) {
+    //   return errorResponse({
+    //     res,
+    //     status: 400,
+    //     message: 'No tienes una suscripcion activa',
+    //   });
+    // }
 
     // Construir condiciones
     const baseConditions: any = { eventId };
@@ -419,5 +483,24 @@ export const getEventMusicsByEventId = async (req: Request, res: Response) => {
       message: 'Error al obtener solicitudes musicales del evento',
       error,
     });
+  }
+};
+
+export const getStripeAvailablePaymentMethod = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const user = await User.findOne({
+      where: { id: id },
+    });
+    if (!user) {
+      return errorResponse({ res, status: 404, message: 'Usuario no encontrado' });
+    }
+    return successResponse({
+      res,
+      message: 'Metodo de pago obtenido correctamente',
+      data: user.isStripeVerified,
+    });
+  } catch (error) {
+    return errorResponse({ res, status: 500, message: 'Error al obtener metodo de pago', error });
   }
 };

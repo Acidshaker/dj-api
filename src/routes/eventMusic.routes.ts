@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import {
+  changeToPaidEventMusic,
   completeEventMusic,
   getEventMusicBySession,
   initiateMusicRequest,
@@ -11,5 +12,6 @@ const router = Router();
 router.get('/', getEventMusicBySession);
 router.post('/create-session', initiateMusicRequest);
 router.post('/complete', verifyToken, completeEventMusic);
+router.post('/paid', verifyToken, changeToPaidEventMusic);
 
 export default router;

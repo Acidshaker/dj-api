@@ -1,48 +1,18 @@
 import { stripe } from '../config/stripe';
 import { User } from '../models/User';
 import { Plan } from '../models/Plan';
-import { Subscription } from '../models/Subscription';
+import { Subscription as LocalSubscription } from '../models/Subscription';
 import { Music } from '../models/Music';
 import { Mention } from '../models/Mention';
 import { EventMusic } from '../models/EventMusic';
 import type { Request, Response } from 'express';
 import Stripe from 'stripe';
 import { broadcastEventMusic } from '../app';
+import { sendSubscriptionCancellationEmail } from '../services/sendSubscriptionCancellationEmail';
+import { sendSubscriptionConfirmationEmail } from '../services/sendSubscriptionConfirmationEmail';
+import { sendSubscriptionRenewalEmail } from '../services/sendSubscriptionRenewalEmail';
 
 const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-
-const subscribe = async (userId: string, planId: number) => {
-  const plan = await Plan.findByPk(planId);
-  const oldSubscription = await Subscription.findOne({ where: { userId } });
-  const currentDate = new Date();
-
-  const addDays = (days: number) => {
-    const date = new Date(currentDate);
-    date.setDate(date.getDate() + days);
-    return date;
-  };
-
-  const subscriptionData = {
-    status: 'active',
-    planId,
-    start_date: currentDate,
-    end_date: plan?.days ? addDays(plan.days) : null,
-    renewal_date: plan?.days ? addDays(plan.days) : null,
-    events_remaining: plan?.events ?? null,
-  };
-
-  if (oldSubscription) {
-    if (oldSubscription.planId === planId && oldSubscription.status === 'active') {
-      console.log(`Suscripción ya activa para user ${userId} con plan ${planId}`);
-      return;
-    }
-    await Subscription.update(subscriptionData, { where: { userId } });
-    console.log(`Suscripción actualizada para user ${userId}`);
-  } else {
-    await Subscription.create({ userId, ...subscriptionData });
-    console.log(`Suscripción creada para user ${userId}`);
-  }
-};
 
 export const stripeWebhook = async (req: Request, res: Response) => {
   const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET as string;
@@ -79,18 +49,54 @@ export const stripeWebhook = async (req: Request, res: Response) => {
     }
   }
 
-  // ✅ Pago exitoso
+  // ✅ Sesión de pago completada (suscripción o solicitud musical)
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as Stripe.Checkout.Session;
 
-    // Suscripción
     const userId = session.metadata?.userId;
     const planId = Number(session.metadata?.planId);
-    if (userId && planId && session.payment_status === 'paid') {
-      await subscribe(userId, planId);
+    const stripeSubscriptionId = session.subscription as string;
+
+    // 🔁 Suscripción Stripe
+    if (userId && planId && stripeSubscriptionId) {
+      const plan = await Plan.findByPk(planId);
+      const user = await User.findByPk(userId);
+      const stripeSubscription = (await stripe.subscriptions.retrieve(
+        stripeSubscriptionId
+      )) as Stripe.Subscription;
+      const firstItem = stripeSubscription.items?.data?.[0];
+      const renewalDate = firstItem?.current_period_end
+        ? new Date(firstItem.current_period_end * 1000)
+        : null;
+      const subscription = await LocalSubscription.findOne({ where: { userId } });
+
+      const subscriptionData = {
+        userId,
+        planId,
+        status: 'active',
+        start_date: new Date(),
+        end_date: null,
+        renewal_date: renewalDate,
+        events_remaining: null,
+        stripeSubscriptionId,
+      };
+
+      if (subscription) {
+        await subscription.update(subscriptionData);
+        user?.update({ subscription_status: 'active', subscription_end: null });
+      } else {
+        await LocalSubscription.create(subscriptionData);
+        user?.update({ subscription_status: 'active', subscription_end: null });
+      }
+
+      if (user && plan) {
+        await sendSubscriptionConfirmationEmail(user, plan);
+      }
+
+      console.log(`🟢 Suscripción Stripe creada para usuario ${userId}`);
     }
 
-    // Solicitud musical
+    // 🎶 Solicitud musical
     const eventId = session.metadata?.eventId;
     const applicant = session.metadata?.applicant;
     const type = session.metadata?.type;
@@ -114,7 +120,6 @@ export const stripeWebhook = async (req: Request, res: Response) => {
         });
         const application_number = last ? last.application_number + 1 : 1;
 
-        // Crear solicitud musical
         const eventMusic = await EventMusic.create({
           applicant,
           type,
@@ -126,19 +131,18 @@ export const stripeWebhook = async (req: Request, res: Response) => {
           is_paid: true,
           is_played: false,
           stripeSessionId: session.id,
+          payment_method: 'stripe',
         });
 
-        // Crear mención
         if (type === 'mention') {
-          const mention = await Mention.create({
+          await Mention.create({
             text: description || '',
             eventMusicId: eventMusic.id,
           });
         }
 
-        // Crear canción
         if (type === 'song') {
-          const music = await Music.create({
+          await Music.create({
             name: name || 'Canción sin nombre',
             author: author || 'Desconocido',
             album_logo: album_logo || '',
@@ -158,14 +162,68 @@ export const stripeWebhook = async (req: Request, res: Response) => {
           url: `${frontendUrl}/events/${eventMusic.eventId}`,
         });
 
-        if (session.amount_total) {
-          console.log(
-            `🎶 Solicitud musical procesada: ${type} para evento ${eventId}, monto $${session.amount_total / 100}`
-          );
-        }
+        console.log(`🎶 Solicitud musical procesada: ${type} para evento ${eventId}`);
       } catch (err) {
         console.error(`❌ Error al registrar solicitud musical desde webhook:`, err);
       }
+    }
+  }
+
+  // 🔄 Renovación de suscripción automática
+  if (event.type === 'invoice.paid') {
+    const invoice = event.data.object as Stripe.Invoice & { subscription?: string };
+    const stripeSubscriptionId = invoice.subscription ?? null;
+
+    const subscription = await LocalSubscription.findOne({ where: { stripeSubscriptionId } });
+    if (subscription) {
+      subscription.status = 'active';
+      if (invoice.next_payment_attempt) {
+        subscription.renewal_date = new Date(invoice.next_payment_attempt * 1000);
+      }
+      await subscription.save();
+
+      const user = await User.findByPk(subscription.userId);
+      if (user) {
+        await user.update({
+          subscription_status: 'active',
+          subscription_end: null,
+        });
+      }
+
+      const plan = await Plan.findByPk(subscription.planId);
+      if (user && plan) {
+        await sendSubscriptionRenewalEmail(user, plan);
+      }
+
+      console.log(`🔁 Suscripción renovada: ${stripeSubscriptionId}`);
+    }
+  }
+
+  // ❌ Cancelación de suscripción
+  if (event.type === 'customer.subscription.deleted') {
+    const stripeSub = event.data.object as Stripe.Subscription;
+
+    const subscription = await LocalSubscription.findOne({
+      where: { stripeSubscriptionId: stripeSub.id },
+    });
+    if (subscription) {
+      await subscription.update({
+        status: 'cancelled',
+        renewal_date: null,
+      });
+
+      const user = await User.findByPk(subscription.userId);
+      if (user) {
+        await user.update({
+          subscription_status: 'cancelled',
+          subscription_end: null,
+          events_remaining: null,
+        });
+
+        await sendSubscriptionCancellationEmail(user);
+      }
+
+      console.log(`🛑 Suscripción cancelada: ${stripeSub.id}`);
     }
   }
 

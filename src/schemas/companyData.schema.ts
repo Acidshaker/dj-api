@@ -12,6 +12,7 @@ export const companyDataSchema = {
     company_name: z.string().min(1).optional(),
     company_phone: z.string().min(1).optional(),
     company_email: z.string().email().optional(),
-    replace_logo: z.boolean().optional(),
+    replace_logo: z.string().optional(),
+    logo: z.string().optional(),
   }),
 };

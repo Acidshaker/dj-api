@@ -6,12 +6,12 @@ import { Music } from './Music';
 export class EventMusic extends Model {
   public id!: string;
   public applicant!: string;
-  public is_payed!: boolean;
+  public is_paid!: boolean;
   public is_played!: boolean;
   public tip!: number | null;
   public application_date!: Date;
   public application_number!: number;
-  public payment_method!: 'card' | 'cash';
+  public payment_method!: 'stripe' | 'cash';
   public music?: Music;
   public mention?: Mention;
   public type!: string;
@@ -45,7 +45,7 @@ EventMusic.init(
       allowNull: false,
     },
     payment_method: {
-      type: DataTypes.ENUM('card', 'cash'),
+      type: DataTypes.ENUM('stripe', 'cash'),
       allowNull: false,
     },
     description: {

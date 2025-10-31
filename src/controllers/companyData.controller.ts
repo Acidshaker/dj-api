@@ -5,6 +5,31 @@ import { uploadCompanyLogo, deleteFileFromS3 } from '../services/s3';
 import { Op } from 'sequelize';
 import { getPaginationParams, formatPaginatedResponse } from '../utils/pagination';
 
+const handleCompanyLogoUpdate = async (
+  companyData: CompanyData,
+  file: Express.Multer.File | undefined,
+  userEmail: string,
+  replaceLogo: boolean
+): Promise<void> => {
+  if (!replaceLogo) return;
+  if (companyData.logo) {
+    await deleteFileFromS3(companyData.logo);
+  }
+
+  if (file) {
+    const logoUrl = await uploadCompanyLogo(
+      file.buffer,
+      file.originalname,
+      userEmail,
+      file.mimetype
+    );
+    console.log(logoUrl);
+    companyData.logo = logoUrl;
+  } else {
+    companyData.logo = null;
+  }
+};
+
 export const getUserCompanyData = async (req: Request, res: Response) => {
   try {
     // const { page, limit, offset } = getPaginationParams(req);
@@ -53,22 +78,23 @@ export const createCompanyData = async (req: Request, res: Response) => {
       userId: req.user.id,
       logo: '',
     });
-    if (file) {
-      const logoUrl = await uploadCompanyLogo(
-        file.buffer,
-        file.originalname,
-        req.user.email,
-        file.mimetype
-      );
 
-      companyData.logo = logoUrl;
-      await companyData.save();
-    }
+    await handleCompanyLogoUpdate(companyData, file, req.user.email, true);
+    await companyData.save();
 
-    return successResponse({ res, message: 'Empresa registrada correctamente', data: companyData });
+    return successResponse({
+      res,
+      message: 'Empresa registrada correctamente',
+      data: companyData,
+    });
   } catch (error) {
     console.log(error);
-    return errorResponse({ res, status: 500, message: 'Error al crear empresa', error });
+    return errorResponse({
+      res,
+      status: 500,
+      message: 'Error al crear empresa',
+      error,
+    });
   }
 };
 
@@ -83,29 +109,16 @@ export const updateCompanyData = async (req: Request, res: Response) => {
     });
 
     if (!companyData) {
-      return errorResponse({ res, status: 404, message: 'Empresa no encontrada o inactiva' });
+      return errorResponse({
+        res,
+        status: 404,
+        message: 'Empresa no encontrada o inactiva',
+      });
     }
 
-    // ✅ Si se solicita reemplazo de logo
-    if (replace_logo === true) {
-      if (companyData.logo) {
-        await deleteFileFromS3(companyData.logo);
-      }
+    const shouldReplaceLogo = replace_logo === 'true' || replace_logo === true;
+    await handleCompanyLogoUpdate(companyData, file, req.user.email, shouldReplaceLogo);
 
-      if (file) {
-        const logoUrl = await uploadCompanyLogo(
-          file.buffer,
-          file.originalname,
-          req.user.email,
-          file.mimetype
-        );
-        companyData.logo = logoUrl;
-      } else {
-        companyData.logo = null;
-      }
-    }
-
-    // ✅ Actualizar campos restantes
     companyData.company_name = company_name ?? companyData.company_name;
     companyData.company_phone = company_phone ?? companyData.company_phone;
     companyData.company_email = company_email ?? companyData.company_email;
@@ -118,7 +131,12 @@ export const updateCompanyData = async (req: Request, res: Response) => {
       data: companyData,
     });
   } catch (error) {
-    return errorResponse({ res, status: 500, message: 'Error al actualizar empresa', error });
+    return errorResponse({
+      res,
+      status: 500,
+      message: 'Error al actualizar empresa',
+      error,
+    });
   }
 };
 

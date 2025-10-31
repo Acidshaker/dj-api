@@ -3,6 +3,7 @@ import { Plan } from '../models/Plan';
 import { Subscription } from '../models/Subscription';
 import { errorResponse, successResponse } from '../utils/response';
 import { generateSubscriptionSession } from '../services/generateSubscriptionSession';
+import { sendSubscriptionCancellationEmail } from '../services/sendSubscriptionCancellationEmail';
 import { stripe } from '../config/stripe';
 import { User } from '../models/User';
 
@@ -42,8 +43,9 @@ export const startSubscriptionPayment = async (req: Request, res: Response) => {
     }
     const plan = await Plan.findByPk(planId);
     if (plan && plan?.price <= 0) {
-      const user = await User.findByPk(userId);
-      user?.update({ is_demo: true });
+      // const user = await User.findByPk(userId);
+      // user?.update({ is_demo: true, subscription_status: 'active' });
+      // return successResponse({ res, message: 'Demo activada con éxito' });
       await subscribe(req, res);
     } else {
       const url = await generateSubscriptionSession({ userId, planId });
@@ -125,6 +127,7 @@ export const subscribe = async (req: Request, res: Response) => {
         subscription_status: 'active',
         subscription_end: plan?.days ? addDays(plan.days) : null,
         events_remaining: plan?.events ? plan.events : null,
+        is_demo: plan?.is_demo,
       });
       return successResponse({
         res,
@@ -138,14 +141,36 @@ export const subscribe = async (req: Request, res: Response) => {
 };
 
 export const cancelSubscription = async (req: Request, res: Response) => {
-  const id = req.user.id;
+  const userId = req.user.id;
+
   try {
-    await Subscription.update(
-      { status: 'cancelled', renewal_date: null },
-      { where: { userId: id } }
-    );
-    return successResponse({ res, message: 'Suscripcion cancelada correctamente' });
+    const subscription = await Subscription.findOne({ where: { userId } });
+    const user = await User.findByPk(userId);
+    if (!subscription || !user) {
+      return errorResponse({
+        res,
+        status: 404,
+        message: 'No hay suscripción activa para cancelar',
+      });
+    }
+
+    // Si es Stripe, cancelar en Stripe primero
+    if (subscription.stripeSubscriptionId) {
+      await stripe.subscriptions.cancel(subscription.stripeSubscriptionId);
+    }
+
+    // Actualizar estado local
+    await Subscription.update({ status: 'cancelled', renewal_date: null }, { where: { userId } });
+    await user.update({
+      subscription_status: 'cancelled',
+      subscription_end: null,
+      events_remaining: null,
+    });
+    await sendSubscriptionCancellationEmail(user);
+
+    return successResponse({ res, message: 'Suscripción cancelada correctamente' });
   } catch (error) {
-    return errorResponse({ res, status: 500, message: 'Error al cancelar la suscripcion', error });
+    console.error('❌ Error al cancelar suscripción:', error);
+    return errorResponse({ res, status: 500, message: 'Error al cancelar la suscripción', error });
   }
 };

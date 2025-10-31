@@ -8,7 +8,7 @@ import { GroupEventPackage } from '../models/GroupEventPackage';
 
 export const createEventPackage = async (req: Request, res: Response) => {
   try {
-    const { name, type, tip } = req.body;
+    const { name, type, tip, isOptionalTip } = req.body;
     const { id } = req.user;
 
     const exist = await EventPackage.findOne({
@@ -28,7 +28,8 @@ export const createEventPackage = async (req: Request, res: Response) => {
       max_songs_per_user: 1,
       is_active: true,
       type,
-      tip,
+      is_optional_tip: isOptionalTip,
+      tip: isOptionalTip ? null : tip,
       userId: id,
     });
 

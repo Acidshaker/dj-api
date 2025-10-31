@@ -12,7 +12,7 @@ export const getPlans = async (req: Request, res: Response) => {
     if (subscription && subscription.status === 'active') {
       // only shows over than planId
       const plans = await Plan.findAll({
-        where: { id: { [Op.gt]: subscription.planId } },
+        where: { id: { [Op.gt]: subscription.planId }, stripePriceId: { [Op.ne]: null } },
         order: [['id', 'ASC']],
       });
       return successResponse({ res, message: 'Planes obtenidos correctamente', data: plans });
@@ -20,12 +20,15 @@ export const getPlans = async (req: Request, res: Response) => {
       if (!user.is_demo) {
         const plans = await Plan.findAll({
           order: [['id', 'ASC']],
+          where: {
+            [Op.or]: [{ is_demo: true }, { stripePriceId: { [Op.ne]: null } }],
+          },
         });
 
         return successResponse({ res, message: 'Planes obtenidos correctamente', data: plans });
       } else {
         const plans = await Plan.findAll({
-          where: { is_demo: false },
+          where: { is_demo: false, stripePriceId: { [Op.ne]: null } },
           order: [['id', 'ASC']],
         });
 

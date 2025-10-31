@@ -10,6 +10,7 @@ export class Subscription extends Model {
   public end_date!: Date | null;
   public events_remaining!: number | null;
   public renewal_date!: Date | null;
+  public stripeSubscriptionId!: string | null;
 }
 
 Subscription.init(
@@ -48,6 +49,10 @@ Subscription.init(
     userId: {
       type: DataTypes.UUID,
       allowNull: false,
+    },
+    stripeSubscriptionId: {
+      type: DataTypes.STRING,
+      allowNull: true,
     },
   },
   {

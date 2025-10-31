@@ -14,6 +14,7 @@ import { getSystemStatus } from './middlewares/status';
 import { adminRouter, adminPath } from './admin/panel';
 import './models';
 import { startSubscriptionChecker } from './cron/subscriptionChecker';
+import { startEventExpirationJob } from './cron/eventChecker';
 import { stripeWebhook } from './webhooks/stripeWebhook';
 import chalk from 'chalk';
 import { WebSocketServer } from 'ws';
@@ -74,7 +75,8 @@ sequelize
   .catch((error) => console.log(error));
 
 // Cron jobs
-startSubscriptionChecker();
+// startSubscriptionChecker();
+startEventExpirationJob();
 
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));

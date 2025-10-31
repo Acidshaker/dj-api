@@ -10,6 +10,7 @@ export class Plan extends Model {
   public events!: number | null; // Cantidad de eventos
   public is_demo!: boolean; // Marca si es un plan de prueba
   public is_active!: boolean;
+  public stripePriceId!: string | null;
 }
 
 Plan.init(
@@ -49,6 +50,10 @@ Plan.init(
     is_demo: {
       type: DataTypes.BOOLEAN,
       defaultValue: false,
+    },
+    stripePriceId: {
+      type: DataTypes.STRING,
+      allowNull: true,
     },
   },
   {

@@ -1,8 +1,10 @@
-import AWS from "aws-sdk";
-import { configs } from "./index";
+import { S3Client } from '@aws-sdk/client-s3';
+import { configs } from './index';
 
-export const s3 = new AWS.S3({
+export const s3Client = new S3Client({
   region: configs.api.aws.region!,
-  accessKeyId: configs.api.aws.accessKeyId!,
-  secretAccessKey: configs.api.aws.secretAccessKey!,
+  credentials: {
+    accessKeyId: configs.api.aws.accessKeyId!,
+    secretAccessKey: configs.api.aws.secretAccessKey!,
+  },
 });

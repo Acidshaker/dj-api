@@ -11,6 +11,7 @@ import {
   reactivateEvent,
   getEventByIdClient,
   getEventMusicsByEventId,
+  getStripeAvailablePaymentMethod,
 } from '../controllers/event.controller';
 import { validateBody } from '../middlewares/validate';
 import { verifyToken } from '../middlewares/auth';
@@ -139,6 +140,8 @@ router.get('/generate-folio', verifyToken, generateFolio);
 router.get('/:id', verifyToken, getEventById);
 
 router.get('/client/:id', getEventByIdClient);
+
+router.get('/client/user-stripe-check/:id', getStripeAvailablePaymentMethod);
 
 /**
  * @swagger

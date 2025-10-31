@@ -1,12 +1,12 @@
-import multer from "multer";
-import multerS3 from "multer-s3";
-import path from "path";
-import { s3 } from "./s3";
+import multer from 'multer';
+import multerS3 from 'multer-s3';
+import path from 'path';
+import { s3Client } from './s3';
 
-const isLocal = process.env.STORAGE_MODE === "local";
+const isLocal = process.env.STORAGE_MODE === 'local';
 
 const localStorage = multer.diskStorage({
-  destination: "uploads/",
+  destination: 'uploads/',
   filename: (_, file, cb) => {
     const ext = path.extname(file.originalname);
     const name = `${Date.now()}${ext}`;
@@ -15,7 +15,7 @@ const localStorage = multer.diskStorage({
 });
 
 const s3Storage = multerS3({
-  s3: s3 as any,
+  s3: s3Client as any,
   bucket: process.env.AWS_BUCKET_NAME!,
   contentType: multerS3.AUTO_CONTENT_TYPE,
   key: (_, file, cb) => {
@@ -25,17 +25,19 @@ const s3Storage = multerS3({
   },
 });
 
+const memoryStorage = multer.memoryStorage(); // ✅ instancia directa
+
 export const upload = multer({
-  storage: isLocal ? localStorage : s3Storage,
+  storage: memoryStorage,
   limits: {
     fileSize: 5 * 1024 * 1024, // 5MB
   },
   fileFilter: (_, file, cb) => {
-    const allowed = ["image/jpeg", "image/png", "application/pdf"];
+    const allowed = ['image/jpeg', 'image/png', 'application/pdf'];
     if (allowed.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error("Tipo de archivo no permitido"));
+      cb(new Error('Tipo de archivo no permitido'));
     }
   },
 });

@@ -1,6 +1,10 @@
+import { CompanyData } from '../models/CompanyData';
 import { configs } from '../config/index';
-import { s3 } from '../config/s3';
+import { s3Client } from '../config/s3';
 import path from 'path';
+import { Upload } from '@aws-sdk/lib-storage';
+import { DeleteObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
+import { Readable } from 'stream';
 
 export const uploadCompanyLogo = async (
   fileBuffer: Buffer,
@@ -8,19 +12,29 @@ export const uploadCompanyLogo = async (
   userEmail: string,
   mimeType: string
 ): Promise<string> => {
-  const key = `${userEmail}/logos/${Date.now()}-${path.basename(fileName)}`;
+  const key = `logos/${userEmail}/${Date.now()}-${path.basename(fileName)}`;
+  console.log('🔑 Key generada:', key);
 
-  const params = {
-    Bucket: configs.api.aws.bucketName!,
-    Key: key,
-    Body: fileBuffer,
-    ContentType: mimeType,
-    ACL: 'public-read',
-  };
+  try {
+    const stream = Readable.from(fileBuffer); // ✅ convierte Buffer a stream
 
-  await s3.upload(params).promise();
-
-  return `https://${configs.api.aws.bucketName}.s3.${configs.api.aws.region}.amazonaws.com/${key}`;
+    const upload = new Upload({
+      client: s3Client,
+      params: {
+        Bucket: configs.api.aws.bucketName!,
+        Key: key,
+        Body: stream,
+        ContentType: mimeType,
+        // ACL: 'public-read',
+      },
+    });
+    const result = await upload.done();
+    console.log('✅ Resultado de subida:', result);
+    return `https://${configs.api.aws.bucketName}.s3.${configs.api.aws.region}.amazonaws.com/${key}`;
+  } catch (error) {
+    console.error('❌ Error al subir a S3:', error);
+    throw new Error('Falló la subida del logo a S3');
+  }
 };
 
 export const deleteFileFromS3 = async (fileUrl: string): Promise<void> => {
@@ -28,10 +42,10 @@ export const deleteFileFromS3 = async (fileUrl: string): Promise<void> => {
 
   const key = fileUrl.split('.amazonaws.com/')[1];
 
-  await s3
-    .deleteObject({
-      Bucket: configs.api.aws.bucketName!,
-      Key: key,
-    })
-    .promise();
+  const command = new DeleteObjectCommand({
+    Bucket: configs.api.aws.bucketName!,
+    Key: key,
+  });
+
+  await s3Client.send(command);
 };

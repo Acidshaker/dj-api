@@ -40,15 +40,15 @@ export const getProfile = async (req: Request, res: Response) => {
 export const updateUserName = async (req: Request, res: Response) => {
   try {
     const id = req.user.id;
-    const { first_name, last_name } = req.body;
+    const { firstName, lastName } = req.body;
 
     const user = await User.findByPk(id);
     if (!user || !user.is_active) {
       return errorResponse({ res, status: 404, message: 'Usuario no encontrado o inactivo' });
     }
 
-    user.first_name = first_name ?? user.first_name;
-    user.last_name = last_name ?? user.last_name;
+    user.first_name = firstName ?? user.first_name;
+    user.last_name = lastName ?? user.last_name;
     await user.save();
 
     return successResponse({ res, message: 'Nombre actualizado correctamente', data: user });
